@@ -1,0 +1,14 @@
+{
+    "scripts": {
+        "fmt": "cargo fmt --all",
+        "fmt:check": "cargo fmt --all --check",
+        "clippy": "cargo clippy --all-targets -- -D warnings",
+        "check": "RUSTFLAGS='-D warnings' cargo check --all-targets",
+        "check:wasm": "cargo check --target wasm32-unknown-unknown",
+        "test": "cargo test --all-targets",
+        "example": "cargo run --example rerun_ui_kit_example",
+        "package": "cargo package",
+        "publish:dry": "cargo publish --dry-run",
+        "publish": "cargo publish"
+    }
+}

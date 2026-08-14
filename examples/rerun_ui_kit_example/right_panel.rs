@@ -298,9 +298,10 @@ impl RightPanel {
 
                     let mut content = list_item::PropertyContent::new("Use action button");
                     if self.use_action_button {
-                        content = content.with_action_button(&rerun_ui_kit::icons::ADD, "Add", || {
-                            log::warn!("Add button clicked");
-                        });
+                        content =
+                            content.with_action_button(&rerun_ui_kit::icons::ADD, "Add", || {
+                                log::warn!("Add button clicked");
+                            });
                     }
                     content = content.value_bool_mut(&mut self.use_action_button);
                     ui.list_item().show_hierarchical(ui, content);
