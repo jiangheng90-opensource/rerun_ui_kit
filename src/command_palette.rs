@@ -299,7 +299,7 @@ fn format_match(
         for (i, c) in target_text.chars().enumerate() {
             let mut format = egui::text::TextFormat::simple(font_id.clone(), text_color);
             if matched_indices.contains(&i) {
-                format.underline = egui::Stroke::new(1.0, text_color);
+                format.underline = egui::Stroke::new(1.0_f32, text_color);
             }
             job.append(&c.to_string(), 0.0, format);
         }

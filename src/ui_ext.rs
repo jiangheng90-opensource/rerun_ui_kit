@@ -1460,11 +1460,11 @@ pub trait UiExt {
         let ui = self.ui_mut();
         ui.visuals_mut().selection.stroke.color = ui.visuals().error_fg_color;
         ui.visuals_mut().widgets.active.bg_stroke =
-            egui::Stroke::new(1.0, ui.visuals().error_fg_color);
+            egui::Stroke::new(1.0_f32, ui.visuals().error_fg_color);
         ui.visuals_mut().widgets.hovered.bg_stroke =
-            egui::Stroke::new(1.0, ui.visuals().error_fg_color);
+            egui::Stroke::new(1.0_f32, ui.visuals().error_fg_color);
         ui.visuals_mut().widgets.inactive.bg_stroke =
-            egui::Stroke::new(1.0, ui.visuals().error_fg_color);
+            egui::Stroke::new(1.0_f32, ui.visuals().error_fg_color);
     }
 }
 
