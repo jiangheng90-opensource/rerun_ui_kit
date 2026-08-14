@@ -5,6 +5,10 @@
 
 #![warn(clippy::iter_over_hash_type)] //  TODO(#6198): enable everywhere
 
+/// Re-exported so consumers can name egui types used in this crate's API
+/// without depending on egui directly (same version as this crate's egui).
+pub use egui;
+
 pub mod alert;
 mod color_table;
 mod command;

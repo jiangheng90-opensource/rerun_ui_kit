@@ -1,9 +1,11 @@
 [package]
 name = "rerun_ui_kit"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Vendored from rerun's re_ui 0.30.2 (https://github.com/rerun-io/rerun), MIT OR Apache-2.0, without the rerun data stack"
+repository = "https://github.com/jiangheng90-opensource/rerun_ui_kit"
+homepage = "https://github.com/jiangheng90-opensource/rerun_ui_kit"
 readme = "README.md"
 keywords = ["egui", "rerun", "ui", "widgets"]
 categories = ["gui"]
