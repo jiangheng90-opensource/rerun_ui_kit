@@ -1,0 +1,38 @@
+[package]
+name = "rerun_ui_kit"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Vendored from rerun's re_ui 0.30.2 (https://github.com/rerun-io/rerun), MIT OR Apache-2.0, without the rerun data stack"
+readme = "README.md"
+keywords = ["egui", "rerun", "ui", "widgets"]
+categories = ["gui"]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[dependencies]
+anyhow = "1.0"
+egui = { version = "0.33", features = ["color-hex"] }
+egui_commonmark = "0.22"
+egui_extras = { version = "0.33", features = ["image", "svg"] }
+itertools = "0.14"
+jiff = "0.2"
+log = "0.4"
+num-traits = "0.2"
+parking_lot = "0.12"
+ron = { version = "0.11", features = ["integer128"] }
+serde = { version = "1.0", features = ["derive"] }
+smallvec = "1.15"
+strum = { version = "0.26", features = ["derive"] }
+strum_macros = "0.26"
+sublime_fuzzy = "0.7"
+url = "2.5"
+web-time = "1.1"
+
+[dev-dependencies]
+crossbeam = "0.8"
+eframe = "0.33"
+egui_kittest = { version = "0.33", features = ["snapshot"] }
+egui_tiles = "0.14"
+log = "0.4"
