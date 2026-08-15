@@ -8,6 +8,8 @@ crate unconditionally pulls in `eframe` and 30+ `re_*` platform crates
 (`re_entity_db`, `re_chunk`, `re_protos`, …). This port keeps the full widget
 set but only depends on egui plus a handful of small pure-Rust libraries.
 
+![Screenshot of the rerun_ui_kit widget gallery example](screenshot.png)
+
 ## What's inside
 
 All of `re_ui`'s UI modules: design tokens (dark/light themes, Inter font),
