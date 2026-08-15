@@ -1,6 +1,6 @@
 [package]
 name = "rerun_ui_kit"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Vendored from rerun's re_ui 0.30.2 (https://github.com/rerun-io/rerun), MIT OR Apache-2.0, without the rerun data stack"

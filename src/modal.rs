@@ -234,18 +234,20 @@ impl ModalWrapper {
                     // Title bar
                     //
 
+                    // Slim title bar matching the other floating windows:
+                    // 12px sides, 6px top, 4px below, no separator.
                     view_padding_frame(
                         tokens,
                         &ViewPaddingFrameParams {
                             left_and_right: true,
-                            top: true,
+                            top: false,
                             bottom: false,
                         },
                     )
                     .show(ui, |ui| {
+                        ui.add_space(6.0);
                         Self::title_bar(ui, &self.title);
-                        ui.add_space(tokens.view_padding() as f32);
-                        ui.full_span_separator();
+                        ui.add_space(4.0);
                     });
 
                     //
@@ -323,7 +325,7 @@ impl ModalWrapper {
     /// Display a title bar in our own style.
     fn title_bar(ui: &mut egui::Ui, title: &str) {
         ui.horizontal(|ui| {
-            ui.strong(title);
+            ui.add(egui::Label::new(egui::RichText::new(title).strong()).selectable(false));
 
             ui.add_space(16.0);
 
