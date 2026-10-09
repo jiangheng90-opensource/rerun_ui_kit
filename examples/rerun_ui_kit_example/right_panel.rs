@@ -388,7 +388,12 @@ impl RightPanel {
                         ui,
                         ui.next_auto_id(),
                         false,
-                        content.with_action_button(&icons::MORE, "more", || {}).with_always_show_buttons(true),
+                        // Port note: `.show_only_when_collapsed(false)` added so the value stays
+                        // visible when the row is expanded (upstream's demo hides it, which looks
+                        // broken with the empty children closure used here).
+                        content
+                            .show_only_when_collapsed(false)
+                            .with_action_button(&icons::MORE, "more", || {}).with_always_show_buttons(true),
                         |_ui| {},
                     );
                 };
