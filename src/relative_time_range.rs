@@ -1,5 +1,5 @@
-use crate::time_types::{AbsoluteTimeRange, TimeType, TimestampFormat};
 use crate::time_types::{TimeInt, TimeRange, TimeRangeBoundary};
+use crate::time_types::{AbsoluteTimeRange, TimeType, TimestampFormat};
 
 use crate::list_item::{self, LabelContent};
 use crate::{TimeDragValue, UiExt as _};
@@ -38,7 +38,7 @@ pub fn relative_time_range_boundary_label_text(
     }
 }
 
-#[expect(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)] // matches upstream signature
 fn edit_boundary_ui(
     ui: &mut egui::Ui,
     boundary: &mut TimeRangeBoundary,
@@ -265,9 +265,9 @@ impl RelativeTimeRange<'_> {
 mod tests {
     use std::ops::RangeInclusive;
 
+    use egui_kittest::{Harness, SnapshotResults};
     use crate::time_types::{TimeInt, TimeRange, TimeRangeBoundary};
     use crate::time_types::{TimeType, TimestampFormat};
-    use egui_kittest::{Harness, SnapshotResults};
 
     use super::RelativeTimeRange;
     use crate::{TimeDragValue, UiExt as _};
@@ -321,10 +321,10 @@ mod tests {
         1_000_000_000 * (60 * 60 * (24 * 12345 + 10) + add_secs)
     }
 
-    #[test]
     #[ignore = "snapshot reference images were not vendored from the rerun repo"]
+    #[test]
     fn test_relative_time_range_ui() {
-        let timestamp_format = TimestampFormat::utc().with_hide_today_date(true);
+        let timestamp_format = TimestampFormat::utc();
         let mut snapshot_results = SnapshotResults::new();
         for (time_type, time_range) in [
             (TimeType::Sequence, 0..=100),

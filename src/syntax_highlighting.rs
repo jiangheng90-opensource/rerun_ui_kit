@@ -1,6 +1,5 @@
-use egui::text::LayoutJob;
+use egui::text::{ByteIndex, LayoutJob};
 use egui::{Color32, Style, TextFormat, TextStyle};
-
 use crate::HasDesignTokens as _;
 
 // ----------------------------------------------------------------------------
@@ -73,9 +72,9 @@ impl SyntaxHighlightedBuilder {
     }
 
     fn append_kind(&mut self, style: SyntaxHighlightedStyle, portion: &str) -> &mut Self {
-        let start = self.text.len();
+        let start = ByteIndex(self.text.len());
         self.text.push_str(portion);
-        let end = self.text.len();
+        let end = ByteIndex(self.text.len());
         self.parts.push(SyntaxHighlightedPart {
             byte_range: start..end,
             style,
@@ -145,6 +144,22 @@ impl SyntaxHighlightedBuilder {
         }
     );
 
+    /// Like [`Self::append_string_value`], but truncates to `max_chars` characters
+    /// and appends `…` (in syntax style) when truncated.
+    pub fn append_string_value_truncated(&mut self, portion: &str, max_chars: usize) -> &mut Self {
+        let quote = Self::QUOTE_CHAR.to_string();
+        self.append_kind(SyntaxHighlightedStyle::StringValue, &quote);
+        if portion.len() > max_chars {
+            let truncated = &portion[..portion.floor_char_boundary(max_chars)];
+            self.append_kind(SyntaxHighlightedStyle::StringValue, truncated);
+            self.append_kind(SyntaxHighlightedStyle::Syntax, "…");
+        } else {
+            self.append_kind(SyntaxHighlightedStyle::StringValue, portion);
+        }
+        self.append_kind(SyntaxHighlightedStyle::StringValue, &quote);
+        self
+    }
+
     impl_style_fns!(
         "A keyword, e.g. a filter operator, like `and` or `all`",
         keyword,
@@ -201,29 +216,10 @@ impl SyntaxHighlightedBuilder {
     }
 
     /// Append text with a custom format closure.
-    #[inline]
-    pub fn append_with_format_closure<F>(&mut self, text: &str, f: F) -> &mut Self
-    where
-        F: 'static + Fn(&Style) -> TextFormat,
-    {
-        self.append_kind(SyntaxHighlightedStyle::CustomClosure(Box::new(f)), text);
-        self
-    }
-
     /// With a custom format.
     #[inline]
     pub fn with_format(mut self, text: &str, format: TextFormat) -> Self {
         self.append_with_format(text, format);
-        self
-    }
-
-    /// With a custom format closure.
-    #[inline]
-    pub fn with_format_closure<F>(mut self, text: &str, f: F) -> Self
-    where
-        F: 'static + Fn(&Style) -> TextFormat,
-    {
-        self.append_with_format_closure(text, f);
         self
     }
 }
@@ -275,7 +271,6 @@ enum SyntaxHighlightedStyle {
     BodyDefault,
     BodyItalics,
     Custom(Box<TextFormat>),
-    CustomClosure(Box<dyn Fn(&Style) -> TextFormat>),
 }
 
 impl std::fmt::Debug for SyntaxHighlightedStyle {
@@ -292,14 +287,13 @@ impl std::fmt::Debug for SyntaxHighlightedStyle {
             Self::BodyDefault => write!(f, "BodyDefault"),
             Self::BodyItalics => write!(f, "BodyItalics"),
             Self::Custom(_) => write!(f, "Custom(…)"),
-            Self::CustomClosure(_) => write!(f, "CustomClosure(…)"),
         }
     }
 }
 
 #[derive(Debug)]
 struct SyntaxHighlightedPart {
-    byte_range: std::ops::Range<usize>,
+    byte_range: egui::text::ByteRange,
     style: SyntaxHighlightedStyle,
 }
 
@@ -354,13 +348,9 @@ impl SyntaxHighlightedStyle {
                 format
             }
             Self::Custom(format) => *format.clone(),
-            Self::CustomClosure(f) => f(style),
         }
     }
 }
-
-// ----------------------------------------------------------------------------
-
 macro_rules! impl_sh_primitive {
     ($t:ty, $to_string:path) => {
         impl SyntaxHighlighting for $t {

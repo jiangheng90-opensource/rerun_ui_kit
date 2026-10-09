@@ -39,6 +39,21 @@ pub fn loading_indicator_ui(ui: &mut egui::Ui, reason: &str) -> egui::Response {
     response
 }
 
+/// A loading indicator as tall as one line of text, so a label can take its place without
+/// changing layout.
+///
+/// `reason` describes why we are loading. In debug builds, it is shown on hover.
+#[doc(alias = "spinner")]
+pub fn inline_loading_indicator_ui(ui: &mut egui::Ui, reason: &str) -> egui::Response {
+    let line_height = ui.text_style_height(&egui::TextStyle::Body);
+    let r = calc_radius(Vec2::new(ui.available_size_before_wrap().x, line_height));
+    let size = Vec2::new(r * WIDTH_IN_R, line_height);
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::hover());
+    response.widget_info(|| egui::WidgetInfo::new(egui::WidgetType::ProgressIndicator));
+    paint_loading_indicator_inside(ui, Align2::LEFT_CENTER, rect, 1.0, None, reason);
+    response
+}
+
 pub fn calc_radius(available_space: Vec2) -> f32 {
     let loading_aspect_ratio = WIDTH_IN_R / HEIGHT_IN_R;
     let rect_aspect_ratio = available_space.x / available_space.y;
@@ -58,6 +73,9 @@ pub fn calc_radius(available_space: Vec2) -> f32 {
 /// If `color` is `None`, the spinner uses `visuals.strong_text_color()`.
 ///
 /// `reason` describes why we are loading. In debug builds, it is shown on hover.
+///
+/// The indicator reports itself to `AccessKit` as a `ProgressIndicator`, so tests can wait for all
+/// loading to finish.
 #[doc(alias = "spinner")]
 pub fn paint_loading_indicator_inside(
     ui: &mut egui::Ui,
@@ -65,11 +83,12 @@ pub fn paint_loading_indicator_inside(
     container_rect: Rect,
     opacity: f32,
     color: Option<Color32>,
-    reason: &str,
+    #[cfg_attr(not(debug_assertions), expect(unused_variables))] reason: &str,
 ) {
     if opacity <= 0.0 {
         return;
     }
+
 
     let r_pts = calc_radius(container_rect.size());
 
@@ -107,10 +126,17 @@ pub fn paint_loading_indicator_inside(
         ui.painter().circle_filled(center, r_pts, color);
     }
 
-    if cfg!(debug_assertions) {
-        ui.allocate_rect(rect_pts, egui::Sense::hover())
-            .on_hover_text(format!("[DEBUG REASON] {reason}"));
+    // Tell tests and screen readers that something is loading here
+    let response = ui.allocate_rect(rect_pts, egui::Sense::hover());
+    response.widget_info(|| egui::WidgetInfo::new(egui::WidgetType::ProgressIndicator));
+
+    #[cfg(debug_assertions)]
+    {
+        response.on_hover_ui(|ui| {
+            crate::UiExt::debug_only_badge(ui);
+            ui.label(reason);
+        });
     }
 
-    ui.ctx().request_repaint();
+    ui.request_repaint();
 }

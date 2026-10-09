@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{NumExt as _, TextWrapMode};
+use egui::{NumExt as _, TextWrapMode, WidgetText};
 
 use crate::UiExt as _;
 use crate::syntax_highlighting::SyntaxHighlightedBuilder;
@@ -28,6 +28,13 @@ pub enum UiLayout {
     /// The UI will be wrapped in a [`egui::ScrollArea`], so data should be fully displayed with no
     /// restriction. When using a table, use the [`Self::table`] function.
     SelectionPanel,
+
+    /// Display a short summary that can be shown inline (e.g. within a `horizontal_wrapped` Ui).
+    ///
+    /// For [`Self::data_label`] other [`UiLayout`]s turn the provided text into a galley,
+    /// breaking horizontal wrapped layouts. This one preserves the provided `LayoutJob` as is, so
+    /// that the [`egui::Label`] has full control over layout.
+    Inline,
 }
 
 impl UiLayout {
@@ -36,7 +43,7 @@ impl UiLayout {
     pub fn is_single_line(&self) -> bool {
         match self {
             Self::List => true,
-            Self::Tooltip | Self::SelectionPanel => false,
+            Self::Tooltip | Self::SelectionPanel | Self::Inline => false,
         }
     }
 
@@ -44,7 +51,7 @@ impl UiLayout {
     #[inline]
     pub fn is_selection_panel(self) -> bool {
         match self {
-            Self::List | Self::Tooltip => false,
+            Self::List | Self::Tooltip | Self::Inline => false,
             Self::SelectionPanel => true,
         }
     }
@@ -56,7 +63,7 @@ impl UiLayout {
     pub fn table(self, ui: &mut egui::Ui) -> egui_extras::TableBuilder<'_> {
         let table = egui_extras::TableBuilder::new(ui);
         match self {
-            Self::List | Self::Tooltip => {
+            Self::List | Self::Tooltip | Self::Inline => {
                 // Be as small as possible in the hover tooltips. No scrolling related configuration, as
                 // the content itself must be limited (scrolling is not possible in tooltips).
                 table.auto_shrink([true, true])
@@ -90,7 +97,7 @@ impl UiLayout {
                         TextWrapMode::Truncate
                     }
                 }
-                Self::Tooltip | Self::SelectionPanel => TextWrapMode::Wrap,
+                Self::Tooltip | Self::SelectionPanel | Self::Inline => TextWrapMode::Wrap,
             };
 
             label = label.wrap_mode(wrap_mode);
@@ -114,10 +121,11 @@ impl UiLayout {
         self.data_label_impl(ui, data.into().to_job(ui.style()))
     }
 
-    fn decorate_url(ui: &mut egui::Ui, mut galley: Arc<egui::Galley>) -> egui::Response {
+    fn decorate_url(self, ui: &mut egui::Ui, mut widget_text: WidgetText) -> egui::Response {
         ui.sanity_check();
 
-        if ui.layer_id().order == egui::Order::Tooltip
+        if let WidgetText::Galley(galley) = &mut widget_text
+            && ui.layer_id().order == egui::Order::Tooltip
             && ui.spacing().tooltip_width < galley.size().x
         {
             // This will make the tooltip too wide.
@@ -132,28 +140,52 @@ impl UiLayout {
             // Ugly hack that may or may not work correctly.
             let mut layout_job = Arc::unwrap_or_clone(galley.job.clone());
             layout_job.wrap.max_width = ui.spacing().tooltip_width;
-            galley = ui.fonts_mut(|f| f.layout_job(layout_job));
+            *galley = ui.fonts_mut(|f| f.layout_job(layout_job));
         }
 
-        let text = galley.text();
-        // By default e.g., "droid:full" would be considered a valid URL. We decided we only care
-        // about sane URL formats that include "://". This means e.g., "mailto:hello@world" won't
-        // be considered a URL, but that is preferable to showing links for anything with a colon.
-        if text.contains("://") {
-            // Syntax highlighting may add quotes around strings.
-            let stripped = text.trim_matches(SyntaxHighlightedBuilder::QUOTE_CHAR);
-            if url::Url::parse(stripped).is_ok() {
-                // This is a general link and should not open a new tab unless desired by the user.
-                return ui.re_hyperlink(galley.clone(), stripped, false);
+        let text = widget_text.text();
+
+        // On one hand we don't want strict parsing of URLs — if there's just some quotes around, that's still valid.
+        // But on the other hand that large json file you have in a cell is definitely not a URL, even if there's one embedded in it!
+        if let Some(stripped) = extract_standalone_url(text) {
+            // Show builtin url types nicely formatted as a button:
+            if let Some(decorator) = crate::UrlDecorator::get(ui.ctx())
+                && let Some(link) = decorator(stripped)
+            {
+                let wrap_mode = if self.is_single_line() && !ui.is_sizing_pass() {
+                    egui::TextWrapMode::Truncate
+                } else {
+                    egui::TextWrapMode::Extend
+                };
+                return ui.add(link.wrap_mode(wrap_mode));
             }
+
+            // This is a general link and should not open a new tab unless desired by the user.
+            return ui.re_hyperlink(widget_text.clone(), stripped, false);
         }
-        let response = ui.label(galley);
+        let response = ui.label(widget_text);
         ui.sanity_check();
         response
     }
 
     fn data_label_impl(self, ui: &mut egui::Ui, mut layout_job: LayoutJob) -> egui::Response {
-        let wrap_width = ui.available_width();
+        if self == Self::Inline {
+            // To correctly allow wrapping in horizontal_wrapped uis, we must let the label itself create the galley
+            layout_job.wrap =
+                TextWrapping::from_wrap_mode_and_width(ui.wrap_mode(), ui.available_width());
+            return self.decorate_url(ui, layout_job.into());
+        }
+        let mut wrap_width = ui.available_width();
+
+        if extract_standalone_url(&layout_job.text).is_some() {
+            // This is a link and will be shown with re_hyperlink, which adds an icon to the
+            // left. We need to consider the icon and space so we can wrap correctly (otherwise
+            // resizing of table columns breaks). Usually this would be handled by atoms, but since
+            // we calculate the galley early here, we need this workaround.
+            wrap_width -= ui.spacing().icon_spacing;
+            wrap_width -= ui.tokens().small_icon_size.x;
+        }
+
         layout_job.wrap = TextWrapping::wrap_at_width(wrap_width);
 
         match self {
@@ -189,11 +221,84 @@ impl UiLayout {
             Self::Tooltip => {
                 layout_job.wrap.max_rows = 3;
             }
-            Self::SelectionPanel => {}
+            Self::SelectionPanel | Self::Inline => {}
         }
 
         let galley = ui.fonts_mut(|f| f.layout_job(layout_job)); // We control the text layout; not the label
 
-        Self::decorate_url(ui, galley)
+        self.decorate_url(ui, galley.into())
+    }
+}
+
+/// Recognize whole-value URLs, not prose containing a URL or opaque URIs like `name:value`.
+fn extract_standalone_url(text: &str) -> Option<&str> {
+    // Syntax highlighting may add quotes around strings, we ignore those.
+    let text = text.trim_matches(SyntaxHighlightedBuilder::QUOTE_CHAR);
+
+    // Does it have a valid scheme with no whitespace in it?
+    let (scheme, _) = text.split_once("://")?;
+    // RFC 3986: a scheme starts with a letter, followed by letters, digits, `+`, `-` or `.`.
+    let mut scheme = scheme.bytes();
+    if !scheme.next().is_some_and(|c| c.is_ascii_alphabetic())
+        || !scheme.all(|c| c.is_ascii_alphanumeric() || matches!(c, b'+' | b'-' | b'.'))
+        || text.chars().any(char::is_whitespace)
+    {
+        return None;
+    }
+
+    url::Url::parse(text).ok().map(|_| text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SyntaxHighlightedBuilder, extract_standalone_url};
+
+    /// As syntax highlighting would present a string value.
+    fn quoted(text: &str) -> String {
+        let quote = SyntaxHighlightedBuilder::QUOTE_CHAR;
+        format!("{quote}{text}{quote}")
+    }
+
+    #[test]
+    fn standalone_urls() {
+        for url in [
+            "https://example.com/path?query=value#fragment",
+            "HTTP://example.com",
+            "rerun+http://localhost:8080/catalog",
+            "file:///tmp/recording.rrd",
+            "https://example.com/path%20with%20spaces",
+            // Digits are fine everywhere but the start of the scheme:
+            "h2c://example.com/path",
+            "http://127.0.0.1:9876/status",
+            "https://example.com/v2/data?page=42#section-3",
+        ] {
+            assert_eq!(extract_standalone_url(url), Some(url), "{url:?}");
+            assert_eq!(extract_standalone_url(&quoted(url)), Some(url), "{url:?}");
+        }
+    }
+
+    #[test]
+    fn embedded_urls_are_not_standalone() {
+        for text in [
+            "",
+            "plain text",
+            "droid:full",
+            "mailto:hello@world",
+            "See https://example.com",
+            "notes: see https://example.com",
+            "notes:https://example.com",
+            "https://example.com followed by prose",
+            "https://example.com\nmore text",
+            "https://exam\tple.com",
+            "https://example.com\u{a0}more",
+            "{\"url\":\"https://example.com\"}",
+            "https://",
+            "://example.com",
+            "1http://example.com",
+            "+http://example.com",
+        ] {
+            assert_eq!(extract_standalone_url(text), None, "{text:?}");
+            assert_eq!(extract_standalone_url(&quoted(text)), None, "{text:?}");
+        }
     }
 }

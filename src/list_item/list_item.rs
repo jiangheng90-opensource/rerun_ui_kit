@@ -1,11 +1,11 @@
 //! Core list item functionality.
 
-use egui::emath::GuiRounding as _;
-use egui::{Color32, EventFilter, NumExt as _, Response, Sense, Shape, Ui};
-
+use crate::egui_ext::garbage_collect::EguiMemoryGarbageCollector;
 use crate::list_item::navigation::ListItemNavigation;
 use crate::list_item::{ContentContext, DesiredWidth, LayoutInfoStack, ListItemContent};
 use crate::{DesignTokens, UiExt as _, design_tokens_of};
+use egui::emath::GuiRounding as _;
+use egui::{Color32, EventFilter, NumExt as _, Response, Sense, Shape, Ui};
 
 struct ListItemResponse {
     /// Response of the whole [`ListItem`]
@@ -38,7 +38,7 @@ pub struct ShowCollapsingResponse<R> {
 /// Besides these core features, [`ListItem`] delegates all content to the [`ListItemContent`]
 /// implementations, such as [`super::LabelContent`] and [`super::PropertyContent`].
 ///
-/// Usage example can be found in `rerun_ui_kit_example`.
+/// Usage example can be found in `re_ui_example`.
 
 #[derive(Debug, Clone)]
 pub struct ListItem {
@@ -53,6 +53,8 @@ pub struct ListItem {
     height: f32,
     y_offset: f32,
     render_offscreen: bool,
+    corner_radius: egui::CornerRadius,
+    collapse_temporary: bool,
 }
 
 impl Default for ListItem {
@@ -69,6 +71,8 @@ impl Default for ListItem {
             height: DesignTokens::list_item_height(),
             y_offset: 0.0,
             render_offscreen: true,
+            corner_radius: egui::CornerRadius::ZERO,
+            collapse_temporary: false,
         }
     }
 }
@@ -248,6 +252,15 @@ impl ListItem {
         self
     }
 
+    /// Set the corner radius of the background highlight.
+    ///
+    /// The default is square, which fits the full-span highlight in panels.
+    #[inline]
+    pub fn with_corner_radius(mut self, corner_radius: impl Into<egui::CornerRadius>) -> Self {
+        self.corner_radius = corner_radius.into();
+        self
+    }
+
     /// Override the background color for the item.
     ///
     /// If set, this takes precedence over [`Self::force_hovered`] and any kind of selection/
@@ -298,6 +311,12 @@ impl ListItem {
         self
     }
 
+    /// Forget this item's collapsed/expanded state as soon as it stops being shown.
+    pub fn collapse_temporary(mut self, temporary: bool) -> Self {
+        self.collapse_temporary = temporary;
+        self
+    }
+
     /// Did we gain focus via arrow key navigation last pass?
     ///
     /// Useful if you want to select items when they gain focus via arrow keys, but not via
@@ -310,7 +329,7 @@ impl ListItem {
     ///
     /// *Important*: must be called while nested in a [`super::list_item_scope`].
     pub fn show_flat<'a>(self, ui: &mut Ui, content: impl ListItemContent + 'a) -> Response {
-        // Note: the purpose of the scope is to minimise interferences on subsequent items' id
+        // Note: the purpose of the scope is to minimize interferences on subsequent items' id
         ui.sanity_check();
         ui.scope(|ui| self.ui(ui, None, 0.0, Box::new(content)))
             .inner
@@ -321,7 +340,7 @@ impl ListItem {
     ///
     /// *Important*: must be called while nested in a [`super::list_item_scope`].
     pub fn show_hierarchical(self, ui: &mut Ui, content: impl ListItemContent) -> Response {
-        // Note: the purpose of the scope is to minimise interferences on subsequent items' id
+        // Note: the purpose of the scope is to minimize interferences on subsequent items' id
         ui.scope(|ui| {
             let tokens = ui.tokens();
             self.ui(
@@ -389,6 +408,16 @@ impl ListItem {
             id,
             default_open,
         );
+        if self.collapse_temporary {
+            let clone = state.clone();
+            ui.plugin::<EguiMemoryGarbageCollector>()
+                .lock()
+                .add(id, move |ctx| {
+                    clone.remove(ctx);
+                    // "Clear" the animation
+                    ctx.animate_bool_with_time(id, default_open, 0.0);
+                });
+        }
 
         let tokens = ui.tokens();
 
@@ -396,7 +425,7 @@ impl ListItem {
         let openness = state.openness(ui.ctx());
         self.collapse_openness = Some(openness);
 
-        // Note: the purpose of the scope is to minimise interferences on subsequent items' id
+        // Note: the purpose of the scope is to minimize interferences on subsequent items' id
         let response = ui
             .scope(|ui| self.ui(ui, Some(id), 0.0, Box::new(content)))
             .inner;
@@ -457,14 +486,17 @@ impl ListItem {
             mut height,
             y_offset,
             render_offscreen,
+            corner_radius,
+            collapse_temporary: _,
         } = self;
 
         let tokens = ui.tokens();
+        let is_first_item = LayoutInfoStack::take_is_first_item(ui.ctx());
 
-        if y_offset != 0.0 {
+        if y_offset != 0.0 && !is_first_item {
             ui.add_space(y_offset);
-            height -= y_offset;
         }
+        height -= y_offset;
 
         let collapsing_triangle_size = tokens.collapsing_triangle_size();
 
@@ -571,7 +603,12 @@ impl ListItem {
             style_response.flags |= egui::response::Flags::HOVERED;
         }
 
-        let hovered = (style_response.hovered() || style_response.contains_pointer())
+        // `contains_pointer` is needed in addition to `hovered` so the highlight doesn't
+        // flicker off while the user is pressing one of the item's buttons. Unlike `hovered`
+        // though, it stays true while some *other* widget (e.g. a panel resize handle) is
+        // being dragged past us, so we must exclude that case ourselves.
+        let hovered = (style_response.hovered()
+            || (style_response.contains_pointer() && ui.ctx().dragged_id().is_none()))
             && interactive
             && !drag_target
             && !egui::DragAndDrop::has_any_payload(ui.ctx());
@@ -660,7 +697,7 @@ impl ListItem {
             if let Some(bg_fill) = force_background.or_else(|| visuals.bg_color(ui.visuals())) {
                 ui.painter().set(
                     background_frame,
-                    Shape::rect_filled(bg_rect_to_paint, 0.0, bg_fill),
+                    Shape::rect_filled(bg_rect_to_paint, corner_radius, bg_fill),
                 );
             }
 

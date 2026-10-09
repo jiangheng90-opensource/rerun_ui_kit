@@ -3,18 +3,15 @@ use std::collections::{HashMap, HashSet};
 use egui::NumExt as _;
 use rerun_ui_kit::{DesignTokens, UiExt as _, list_item};
 
-fn next_id() -> u32 {
-    use std::sync::atomic::{AtomicU32, Ordering};
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
-    COUNTER.fetch_add(1, Ordering::Relaxed)
-}
-
 #[derive(Hash, Clone, Copy, PartialEq, Eq)]
 struct ItemId(u32);
 
 impl ItemId {
     fn new() -> Self {
-        Self(next_id())
+        // Locally-unique is enough for this demo (no crypto RNG needed).
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        Self(COUNTER.fetch_add(1, Ordering::Relaxed))
     }
 }
 
@@ -370,7 +367,7 @@ impl HierarchicalDragAndDrop {
             return;
         };
 
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+        ui.set_cursor_icon(egui::CursorIcon::Grabbing);
 
         let Some((parent_id, position_index_in_parent)) = self.parent_and_pos(item_id) else {
             // this shouldn't happen

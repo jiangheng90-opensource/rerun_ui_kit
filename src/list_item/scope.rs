@@ -45,11 +45,6 @@ struct LayoutStatistics {
     /// The semantics are exactly the same as [`LayoutInfo`]'s `left_column_width`.
     max_desired_left_column_width: Option<f32>,
 
-    /// Track whether any item uses the action button.
-    ///
-    /// If so, space for a right-aligned gutter should be reserved.
-    is_action_button_used: bool,
-
     /// Max item width.
     ///
     /// The width is calculated from [`LayoutInfo::left_x`] to the right edge of the item.
@@ -135,6 +130,9 @@ pub struct LayoutInfo {
     ///
     /// This value is measured from `left_x`.
     pub(crate) property_content_max_width: Option<f32>,
+
+    /// Whether the next list item is the first item in this scope.
+    is_first_item: bool,
 }
 
 impl Default for LayoutInfo {
@@ -144,6 +142,7 @@ impl Default for LayoutInfo {
             left_column_width: None,
             scope_id: egui::Id::NULL,
             property_content_max_width: None,
+            is_first_item: true,
         }
     }
 }
@@ -159,13 +158,6 @@ impl LayoutInfo {
                 .max_desired_left_column_width
                 .map(|v| v.max(desired_width))
                 .or(Some(desired_width));
-        });
-    }
-
-    /// Indicate whether right-aligned space should be reserved for the action button.
-    pub fn reserve_action_button_space(&self, ui: &egui::Ui, reserve: bool) {
-        LayoutStatistics::update(ui, self.scope_id, |stats| {
-            stats.is_action_button_used |= reserve;
         });
     }
 
@@ -226,16 +218,33 @@ impl LayoutInfoStack {
             let stack: &mut Self = writer.get_temp_mut_or_default(egui::Id::NULL);
             let state = stack.0.last();
             if state.is_none() {
-                log::warn!(
-                    "Attempted to access empty LayoutInfo stack, returning default LayoutInfo. \
-                    Wrap all calls to ListItem in a list_item_scope()."
-                );
+                // re_log::debug_warn_once! → once-guarded log::warn!
+                static WARNED: std::sync::Once = std::sync::Once::new();
+                WARNED.call_once(|| {
+                    log::warn!(
+                        "Attempted to access empty LayoutInfo stack, returning default LayoutInfo. \
+                        Wrap all calls to ListItem in a list_item_scope()."
+                    );
+                });
             }
             debug_assert!(
                 state.is_some(),
                 "ListItem was not wrapped in list_item_scope()"
             );
             state.cloned().unwrap_or_default()
+        })
+    }
+
+    /// Returns whether the next list item is the first item in the current scope.
+    pub(crate) fn take_is_first_item(ctx: &egui::Context) -> bool {
+        ctx.data_mut(|writer| {
+            let stack: &mut Self = writer.get_temp_mut_or_default(egui::Id::NULL);
+            let Some(layout_info) = stack.0.last_mut() else {
+                debug_assert!(false, "ListItem was not wrapped in list_item_scope()");
+                return false;
+            };
+
+            std::mem::replace(&mut layout_info.is_first_item, false)
         })
     }
 }
@@ -259,14 +268,43 @@ impl LayoutInfoStack {
 /// - Uses [`egui::Ui::push_id`] so two sibling `list_item_scope`:s with different ids won't have id clashes within them.
 /// - The `ui.spacing_mut().item_spacing.y` is set to `0.0` to remove the default spacing between
 ///   list items.
+///
+/// See [`list_item_scope_in_place`] for a variant that doesn't create a child [`egui::Ui`].
 pub fn list_item_scope<R>(
     ui: &mut egui::Ui,
-    id_salt: impl std::hash::Hash,
+    id_salt: impl egui::AsId,
     content: impl FnOnce(&mut egui::Ui) -> R,
 ) -> InnerResponse<R> {
+    let id_salt = egui::Id::new(id_salt); // So we can use it twice
+
+    with_layout_info(ui, id_salt, |ui| {
+        ui.push_id(id_salt, |ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            content(ui)
+        })
+    })
+}
+
+/// Same as [`list_item_scope`], but runs `content` on the given [`egui::Ui`] instead of a child one.
+///
+/// The content stays a direct part of the surrounding layout, and keeps the ui's
+/// `item_spacing`.
+pub fn list_item_scope_in_place<R>(
+    ui: &mut egui::Ui,
+    id_salt: impl egui::AsId,
+    content: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    with_layout_info(ui, egui::Id::new(id_salt), content)
+}
+
+/// Set up the [`LayoutInfo`] for `content`, without touching the layout itself.
+fn with_layout_info<R>(
+    ui: &mut egui::Ui,
+    id_salt: egui::Id,
+    content: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
     ui.sanity_check();
 
-    let id_salt = egui::Id::new(id_salt); // So we can use it twice
     let scope_id = ui.id().with(id_salt);
 
     // read last frame layout statistics and reset for the new frame
@@ -290,16 +328,14 @@ pub fn list_item_scope<R>(
         left_column_width,
         scope_id,
         property_content_max_width: layout_stats.property_content_max_width,
+        is_first_item: true,
     };
 
     let is_root = ListItemNavigation::init_if_root(ui.ctx());
 
     // push, run, pop
-    LayoutInfoStack::push(ui.ctx(), state.clone());
-    let response = ui.push_id(id_salt, |ui| {
-        ui.spacing_mut().item_spacing.y = 0.0;
-        content(ui)
-    });
+    LayoutInfoStack::push(ui.ctx(), state);
+    let result = content(ui);
     LayoutInfoStack::pop(ui.ctx());
 
     if is_root {
@@ -308,5 +344,5 @@ pub fn list_item_scope<R>(
 
     ui.sanity_check();
 
-    response
+    result
 }

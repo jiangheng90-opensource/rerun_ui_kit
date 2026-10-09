@@ -117,7 +117,7 @@ where
 ///
 /// The returned value is for human eyes only, and can not be parsed
 /// by the normal `usize::from_str` function.
-#[expect(clippy::needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value)]
 pub fn format_uint<Uint>(number: Uint) -> String
 where
     Uint: Display + num_traits::Unsigned,

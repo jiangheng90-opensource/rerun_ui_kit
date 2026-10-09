@@ -1,8 +1,16 @@
-use egui::Ui;
-use rerun_ui_kit::list_item::ListItemContentButtonsExt as _;
-use rerun_ui_kit::{UiExt as _, list_item};
-
 use crate::{drag_and_drop, hierarchical_drag_and_drop};
+use eframe::emath::Align;
+use egui::{Atom, AtomExt as _, AtomKind, Button, DragValue, RichText, TextEdit, Ui, Vec2};
+use rerun_ui_kit::list_item::{ListItemContentButtonsExt as _, PropertyContent};
+use rerun_ui_kit::re_form::{ConstructFormStrip as _, FormFields, SelectableStrip};
+use rerun_ui_kit::{TabBar, UiExt as _, icons, list_item};
+
+#[derive(PartialEq)]
+enum DemoTab {
+    Segments,
+    Assets,
+    Schema,
+}
 
 pub struct RightPanel {
     show_hierarchical_demo: bool,
@@ -10,6 +18,7 @@ pub struct RightPanel {
     hierarchical_drag_and_drop: hierarchical_drag_and_drop::HierarchicalDragAndDrop,
     selected_list_item: Option<usize>,
     use_action_button: bool,
+    tab: DemoTab,
 
     // dummy data
     text: String,
@@ -26,6 +35,7 @@ impl Default for RightPanel {
                 hierarchical_drag_and_drop::HierarchicalDragAndDrop::default(),
             selected_list_item: None,
             use_action_button: false,
+            tab: DemoTab::Segments,
             // dummy data
             text: "Hello world".to_owned(),
             color: [128, 0, 0, 255],
@@ -44,35 +54,59 @@ impl RightPanel {
         //
 
         ui.panel_content(|ui| {
-            ui.panel_title_bar_with_buttons("Demo: drag-and-drop", None, |ui| {
-                ui.toggle_switch(8.0, &mut self.show_hierarchical_demo);
-                ui.label("Hierarchical:");
-            });
-
             list_item::list_item_scope(ui, "drag_and_drop", |ui| {
-                if self.show_hierarchical_demo {
-                    self.hierarchical_drag_and_drop.ui(ui);
-                } else {
-                    self.drag_and_drop.ui(ui);
-                }
+                let show_hierarchical = self.show_hierarchical_demo;
+                ui.section_collapsing_header("Drag and drop")
+                    .with_buttons(|ui| {
+                        ui.toggle_switch(8.0, &mut self.show_hierarchical_demo);
+                        ui.label("Hierarchical:");
+                    })
+                    .show(ui, |ui| {
+                        if show_hierarchical {
+                            self.hierarchical_drag_and_drop.ui(ui);
+                        } else {
+                            self.drag_and_drop.ui(ui);
+                        }
+                    });
             });
         });
 
-        ui.add_space(20.0);
+        //
+        // Tab bar demo.
+        //
+
+        ui.panel_content(|ui| {
+            list_item::list_item_scope(ui, "tab_bar", |ui| {
+                ui.section_collapsing_header("Tab bar").show(ui, |ui| {
+                    TabBar::new(ui)
+                        .selectable_value(&mut self.tab, DemoTab::Segments, "Segments")
+                        .selectable_value(&mut self.tab, DemoTab::Assets, "Assets")
+                        .selectable_value(&mut self.tab, DemoTab::Schema, "Schema");
+
+                    ui.add_space(8.0);
+                    ui.label(match self.tab {
+                        DemoTab::Segments => "Segments content",
+                        DemoTab::Assets => "Assets content",
+                        DemoTab::Schema => "Schema content",
+                    });
+                });
+            });
+        });
 
         //
         // Demo of `ListItem` API and features.
         //
 
         ui.panel_content(|ui| {
-            ui.panel_title_bar("Demo: ListItem APIs", None);
-
             list_item::list_item_scope(ui, "list_item_api", |ui| {
-                self.list_item_api_demo(ui);
+                self.new_form_fields_demo(ui);
+
+                ui.section_collapsing_header("List item api")
+                    .show(ui, |ui| {
+                        self.list_item_api_demo(ui);
+                    });
             });
         });
-
-        ui.add_space(20.0);
 
         //
         // Nested scroll area demo. Multiple `panel_content` must be used to ensure the scroll
@@ -183,15 +217,6 @@ impl RightPanel {
                     )
                     .on_hover_text("The styling applies to the icon.");
 
-                ui.list_item()
-                    .show_hierarchical(
-                        ui,
-                        list_item::LabelContent::new("LabelContent with LabelStyle")
-                            .label_style(rerun_ui_kit::LabelStyle::Unnamed)
-                            .with_icon(&rerun_ui_kit::icons::VIEW_2D),
-                    )
-                    .on_hover_text("The LabelStyle doesn't apply to the icon.");
-
                 ui.list_item().show_hierarchical(
                     ui,
                     list_item::LabelContent::new("LabelContent with buttons").with_buttons(|ui| {
@@ -283,7 +308,7 @@ impl RightPanel {
                         ui.list_item().show_hierarchical(
                             ui,
                             list_item::PropertyContent::new("Some item:").value_fn(|ui, _| {
-                                ui.ctx().debug_painter().debug_rect(
+                                ui.debug_painter().debug_rect(
                                     ui.max_rect(),
                                     egui::Color32::LIGHT_BLUE,
                                     "space for value",
@@ -298,10 +323,9 @@ impl RightPanel {
 
                     let mut content = list_item::PropertyContent::new("Use action button");
                     if self.use_action_button {
-                        content =
-                            content.with_action_button(&rerun_ui_kit::icons::ADD, "Add", || {
-                                log::warn!("Add button clicked");
-                            });
+                        content = content.with_action_button(&rerun_ui_kit::icons::ADD, "Add", || {
+                            log::warn!("Add button clicked");
+                        });
                     }
                     content = content.value_bool_mut(&mut self.use_action_button);
                     ui.list_item().show_hierarchical(ui, content);
@@ -328,7 +352,7 @@ impl RightPanel {
                 ui.list_item().show_hierarchical(
                     ui,
                     list_item::CustomContent::new(|ui, _| {
-                        ui.ctx().debug_painter().debug_rect(
+                        ui.debug_painter().debug_rect(
                             ui.max_rect(),
                             egui::Color32::LIGHT_RED,
                             "CustomContent delegates to a closure",
@@ -339,7 +363,7 @@ impl RightPanel {
                 ui.list_item().show_hierarchical(
                     ui,
                     list_item::CustomContent::new(|ui, _| {
-                        ui.ctx().debug_painter().debug_rect(
+                        ui.debug_painter().debug_rect(
                             ui.max_rect(),
                             egui::Color32::LIGHT_RED,
                             "CustomContent with an action button",
@@ -351,5 +375,149 @@ impl RightPanel {
                 );
             },
         );
+    }
+
+    fn new_form_fields_demo(&mut self, ui: &mut Ui) {
+        list_item::list_item_scope(ui, "form_fields", |ui| {
+            ui.section_collapsing_header("New form fields").show(ui, |ui| {
+                ui.small("SeriesLines");
+
+                ui.spacing_mut().item_spacing.y = 2.0; // TODO(lucas): 4 should be the correct value, why does 2 look right?
+                let demo_ui = |ui: &mut Ui, content: PropertyContent<'_>| {
+                    ui.list_item().interactive(false).show_hierarchical_with_children(
+                        ui,
+                        ui.next_auto_id(),
+                        false,
+                        content.with_action_button(&icons::MORE, "more", || {}).with_always_show_buttons(true),
+                        |_ui| {},
+                    );
+                };
+
+                let subdued = ui.tokens().text_subdued;
+                let suffix = |suffix: &str| {
+                    RichText::new(suffix).color(subdued).size(10.0)
+                };
+
+                // The drag value hardcodes it's gap to 0 so we need to add some space
+                let drag_value_gap = || AtomKind::Empty.atom_size(Vec2::new(4.0, 0.0));
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("width").value_fn(|ui, _vis| {
+                        FormFields::single(
+                            ui,
+                            DragValue::new(
+                                &mut 0.75,
+                            ).suffix((drag_value_gap(), suffix(" pt"))),
+                        );
+                    }),
+                );
+
+                // TODO(RR-3864): ComboBox should allow customizing the icon globally
+                let fake_combobox = |label: &str| {
+                    Button::new((label, Atom::grow(), icons::COMBO_ARROW))
+                        .image_tint_follows_text_color(true)
+                };
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("marker_size").value_fn(|ui, _vis| {
+                        FormFields::relative(ui, [1.0, 2.0])
+                            .and(DragValue::new(&mut 11.17))
+                            .and(|ui: &mut Ui| {
+                                // TODO(RR-3864): ComboBox shouldn't wrap button in a horizontal
+                                // ComboBox::from_id_salt("123")
+                                //     .selected_text("ui points")
+                                //     .show_ui(ui, |ui| {})
+                                //     .response
+                                ui.add(
+                                    fake_combobox("ui points")
+                                )
+                            });
+                    }),
+                );
+
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("centers")
+                        .value_fn(|ui, _vis| {
+                            FormFields::same(ui, 2)
+                                .and(DragValue::new(&mut 640.0).prefix((suffix("x"), drag_value_gap())))
+                                .and(DragValue::new(&mut 640.0).prefix((suffix("y"), drag_value_gap())));
+                        }),
+                );
+
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("range")
+                        .value_fn(|ui, _vis| {
+                            FormFields::same(ui, 2)
+                                .and(DragValue::new(&mut 640.0)
+                                    .suffix((drag_value_gap().atom_grow(true), suffix("min"))))
+                                .and(DragValue::new(&mut 640.0).suffix((drag_value_gap().atom_grow(true), suffix("max"))));
+                        }),
+                );
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("centers")
+                        .value_fn(|ui, _vis| {
+                            FormFields::same(ui, 3)
+                                .and(DragValue::new(&mut 2.0))
+                                .and(DragValue::new(&mut 1.0))
+                                .and(DragValue::new(&mut 0.0));
+                        }),
+                );
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("vertex_normals")
+                        .value_fn(|ui, _vis| {
+                            FormFields::same(ui, 3)
+                                .and(DragValue::new(&mut 640.0).prefix((suffix("x"), drag_value_gap())))
+                                .and(DragValue::new(&mut 640.0).prefix((suffix("y"), drag_value_gap())))
+                                .and(DragValue::new(&mut 640.0).prefix((suffix("z"), drag_value_gap())));
+                        }),
+                );
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("aggregation")
+                        .value_fn(|ui, _vis| {
+                            FormFields::single(ui, fake_combobox("Average"));
+                        }),
+                );
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("visibility")
+                        .value_fn(|ui, _vis| {
+                            SelectableStrip::same(ui, 2)
+                                .selectable_value(&mut self.boolean, true, "Show")
+                                .selectable_value(&mut self.boolean, false, "Hide");
+                        }),
+                );
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("name")
+                        .value_fn(|ui, _vis| {
+                            FormFields::single(ui, TextEdit::singleline(&mut "Temperature".to_owned())
+                                .vertical_align(Align::Center));
+                        }),
+                );
+
+                demo_ui(
+                    ui,
+                    PropertyContent::new("text")
+                        .value_fn(|ui, _vis| {
+                            let mut text = "Give a bit of space to a longer text input fields, let’s say at least 3 lines and the rest …".to_owned();
+                            FormFields::single(ui, TextEdit::multiline(&mut text).desired_rows(1));
+                        }),
+                );
+            });
+        });
     }
 }

@@ -3,6 +3,13 @@ use egui::{Align2, Mesh, Rect, Shape, Vec2, pos2};
 
 use crate::{DesignTokens, TopBarStyle};
 
+#[derive(Clone, Copy, serde::Deserialize, serde::Serialize)]
+struct TestMarker;
+
+fn test_marker_id() -> egui::Id {
+    egui::Id::new("__rerun_test_marker")
+}
+
 /// Extension trait for [`egui::Context`].
 ///
 /// This trait provides Rerun-specific helpers and utilities that require access to the egui
@@ -14,9 +21,15 @@ pub trait ContextExt {
         crate::design_tokens_of(self.ctx().theme())
     }
 
-    /// Current time in seconds
-    fn time(&self) -> f64 {
-        self.ctx().input(|i| i.time)
+    fn mark_as_test(&self) {
+        self.ctx()
+            .data_mut(|data| data.insert_persisted(test_marker_id(), TestMarker));
+    }
+
+    fn is_test(&self) -> bool {
+        self.ctx()
+            .data_mut(|data| data.get_persisted::<TestMarker>(test_marker_id()))
+            .is_some()
     }
 
     // -----------------------------------------------------
@@ -27,23 +40,29 @@ pub trait ContextExt {
     /// Text format used for regular body.
     fn text_format_body(&self) -> egui::TextFormat {
         egui::TextFormat::simple(
-            egui::TextStyle::Body.resolve(&self.ctx().style()),
-            self.ctx().style().visuals.text_color(),
+            egui::TextStyle::Body.resolve(&self.ctx().global_style()),
+            self.ctx().global_style().visuals.text_color(),
         )
     }
 
     /// Text format used for labels referring to keys and buttons.
     fn text_format_key(&self) -> egui::TextFormat {
         let mut style = egui::TextFormat::simple(
-            egui::TextStyle::Monospace.resolve(&self.ctx().style()),
-            self.ctx().style().visuals.text_color(),
+            egui::TextStyle::Monospace.resolve(&self.ctx().global_style()),
+            self.ctx().global_style().visuals.text_color(),
         );
-        style.background = self.ctx().style().visuals.widgets.noninteractive.bg_fill;
+        style.background = self
+            .ctx()
+            .global_style()
+            .visuals
+            .widgets
+            .noninteractive
+            .bg_fill;
         style
     }
 
     fn rerun_logo_uri(&self) -> &'static str {
-        if self.ctx().style().visuals.dark_mode {
+        if self.ctx().global_style().visuals.dark_mode {
             "bytes://logo_dark_mode"
         } else {
             "bytes://logo_light_mode"
@@ -53,18 +72,18 @@ pub trait ContextExt {
     /// Hovered UI and spatial primitives should have this outline.
     fn hover_stroke(&self) -> egui::Stroke {
         // We want something bright here.
-        self.ctx().style().visuals.widgets.active.fg_stroke
+        self.ctx().global_style().visuals.widgets.active.fg_stroke
     }
 
     /// Selected UI and spatial primitives should have this outline.
     fn selection_stroke(&self) -> egui::Stroke {
-        self.ctx().style().visuals.selection.stroke
+        self.ctx().global_style().visuals.selection.stroke
 
         // It is tempting to use the background selection color for outlines,
         // but in practice it is way too dark for spatial views (you can't tell what is selected).
         // Also: background colors should not be used as stroke colors.
-        // let color = self.ctx().style().visuals.selection.bg_fill;
-        // let stroke_width = self.ctx().style().visuals.selection.stroke.width;
+        // let color = self.ctx().global_style().visuals.selection.bg_fill;
+        // let stroke_width = self.ctx().global_style().visuals.selection.stroke.width;
         // egui::Stroke::new(stroke_width, color)
     }
 
@@ -80,7 +99,7 @@ pub trait ContextExt {
     /// which has a nice fat border around it.
     #[must_use]
     fn warning_text(&self, text: impl Into<String>) -> egui::RichText {
-        let style = self.ctx().style();
+        let style = self.ctx().global_style();
         egui::RichText::new(text).color(style.visuals.warn_fg_color)
     }
 
@@ -90,10 +109,17 @@ pub trait ContextExt {
     /// which has a nice fat border around it.
     #[must_use]
     fn error_text(&self, text: impl Into<String>) -> egui::RichText {
-        let style = self.ctx().style();
+        let style = self.ctx().global_style();
         egui::RichText::new(text).color(style.visuals.error_fg_color)
     }
 
+    /// Port note: upstream takes `_frame: &eframe::Frame` here and uses it to measure the
+    /// native macOS traffic-light button area (`eframe::WindowChromeMetrics` +
+    /// `raw_window_handle`), so the top bar can make room for it in full-size windows.
+    /// That chain is not vendored (it is the only reason this crate would need `eframe`,
+    /// `raw_window_handle` and `unsafe` code); the port always returns the tokens-based
+    /// height with zero indent. Consumers wanting rerun-style full-size chrome on macOS
+    /// must reserve the traffic-light indent themselves.
     fn top_bar_style(&self, _style_like_web: bool) -> TopBarStyle {
         let tokens = self.tokens();
         TopBarStyle {

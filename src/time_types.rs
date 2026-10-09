@@ -462,30 +462,31 @@ pub enum TimestampFormatKind {
     SecondsSinceUnixEpoch,
 }
 
+/// Controls whether the date part of a timestamp is shown.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum DateVisibility {
+    /// Always show the date.
+    ShowDate,
+
+    /// Hide the date when it's today.
+    #[default]
+    HideDateToday,
+
+    /// Always hide the date.
+    HideDate,
+}
+
 /// How to display a [`Timestamp`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TimestampFormat {
     /// What kind of format to use.
     format_kind: TimestampFormatKind,
 
-    /// For date-time format kinds, should we omit the date part when it's today?
-    ///
-    /// By default, we do, but having this toggle is convenient for the uses-cases where omitting
-    /// the date part is not desirable.
-    hide_today_date: bool,
+    /// For date-time format kinds: when should we show the date part?
+    date_visibility: DateVisibility,
 
     /// For date-time format kinds, should we omit date, nanos and suffix?
     short: bool,
-}
-
-impl Default for TimestampFormat {
-    fn default() -> Self {
-        Self {
-            format_kind: Default::default(),
-            hide_today_date: true,
-            short: false,
-        }
-    }
 }
 
 impl From<TimestampFormatKind> for TimestampFormat {
@@ -518,8 +519,8 @@ impl TimestampFormat {
         self.format_kind
     }
 
-    pub fn with_hide_today_date(mut self, hide_date_when_today: bool) -> Self {
-        self.hide_today_date = hide_date_when_today;
+    pub fn with_date_visibility(mut self, date_visibility: DateVisibility) -> Self {
+        self.date_visibility = date_visibility;
         self
     }
 
@@ -528,8 +529,8 @@ impl TimestampFormat {
         self
     }
 
-    pub fn hide_today_date(&self) -> bool {
-        self.hide_today_date
+    pub fn date_visibility(&self) -> DateVisibility {
+        self.date_visibility
     }
 
     pub fn short(&self) -> bool {
@@ -627,11 +628,11 @@ impl Timestamp {
     }
 }
 
-#[expect(clippy::fallible_impl_from)]
+#[allow(clippy::fallible_impl_from)]
 impl From<Timestamp> for jiff::Timestamp {
     fn from(value: Timestamp) -> Self {
         // Cannot fail - see docs for jiff::Timestamp::from_nanosecond
-        #[expect(clippy::unwrap_used)]
+        #[allow(clippy::unwrap_used)]
         Self::from_nanosecond(value.nanos_since_epoch() as i128).unwrap()
     }
 }
@@ -721,11 +722,17 @@ impl Timestamp {
                 let tz = timestamp_format.to_jiff_time_zone();
                 let zoned = timestamp.to_zoned(tz.clone());
 
-                let is_today = zoned.date() == jiff::Timestamp::now().to_zoned(tz.clone()).date();
-
-                let formatted = if timestamp_format.short()
-                    || (timestamp_format.hide_today_date() && is_today)
-                {
+                let hide_date = match timestamp_format.date_visibility() {
+                    // `ShowDate` takes priority over `short`, so a caller can get a date with
+                    // whole seconds, no nanos and no suffix.
+                    DateVisibility::ShowDate => false,
+                    DateVisibility::HideDate => true,
+                    DateVisibility::HideDateToday => {
+                        timestamp_format.short()
+                            || zoned.date() == jiff::Timestamp::now().to_zoned(tz.clone()).date()
+                    }
+                };
+                let formatted = if hide_date {
                     zoned.strftime("%H:%M:%S").to_string()
                 } else {
                     zoned.strftime("%Y-%m-%d %H:%M:%S").to_string()
@@ -813,7 +820,10 @@ impl Timestamp {
             // Parse as seconds and convert to nanoseconds
             let seconds = s.parse::<f64>().ok()?;
             Some(Self::from_secs_since_epoch(seconds))
-        } else if timestamp_format.hide_today_date() {
+        } else if matches!(
+            timestamp_format.date_visibility(),
+            DateVisibility::HideDateToday | DateVisibility::HideDate
+        ) {
             // Maybe this is a naked timestamp without any date?
 
             let tz = timestamp_format.to_jiff_time_zone();

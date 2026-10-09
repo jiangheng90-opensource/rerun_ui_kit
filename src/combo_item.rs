@@ -1,8 +1,7 @@
-use crate::egui_ext::WidgetTextExt as _;
-use crate::egui_ext::boxed_widget::{BoxedWidget, BoxedWidgetExt as _};
 use crate::{DesignTokens, UiExt as _, icons};
 use egui::emath::Align;
 use egui::epaint::FontFamily;
+use egui::epaint::text::TextWrapMode;
 use egui::{
     Atom, AtomExt as _, AtomLayout, Atoms, Button, FontId, Frame, Id, Layout, Margin, Pos2, Rect,
     Response, Sense, TextStyle, Ui, UiBuilder, Vec2, Widget, WidgetText,
@@ -12,7 +11,7 @@ use egui::{
 pub struct ComboItem<'a> {
     label: WidgetText,
     selected: bool,
-    value: Option<BoxedWidget<'a>>,
+    value: Option<egui::BoxedWidget<'a>>,
     error: Option<String>,
 }
 
@@ -42,16 +41,16 @@ impl<'a> ComboItem<'a> {
     }
 
     /// Add a value. Will be shown on the right side at font size 10.
-    pub fn value(mut self, value: impl Into<WidgetText> + Send + Sync + 'a) -> Self {
+    pub fn value(mut self, value: impl Into<WidgetText> + 'a) -> Self {
         let value = value
             .into()
-            .force_size(DesignTokens::combo_item_small_font_size());
+            .size(DesignTokens::combo_item_small_font_size());
         self.value = Some((|ui: &mut Ui| ui.label(value)).boxed());
         self
     }
 
     /// Add a value as a widget. Will be shown on the right side at font size 10.
-    pub fn value_widget(mut self, value: impl Widget + Send + Sync + 'a) -> Self {
+    pub fn value_widget(mut self, value: impl Widget + 'a) -> Self {
         self.value = Some(value.boxed());
         self
     }
@@ -89,17 +88,13 @@ impl Widget for ComboItem<'_> {
         let mut atoms = Atoms::new((check_icon, label));
 
         let error_id = Id::new("error");
-
-        // Annoyingly, `UiBuilder::id` wraps the passed `Id` with an extra `Id::new`, meaning
-        // we have to do the same to read it:
-        let value_scope_id_raw = ui.next_auto_id().with("value_scope");
-        let value_scope_id = Id::new(value_scope_id_raw);
+        let value_scope_id = ui.next_auto_id().with("value_scope");
 
         if error.is_some() {
             atoms.push_right(Atom::grow().atom_size(Vec2::new(16.0, 0.0)));
             atoms.push_right(Atom::custom(error_id, ui.tokens().small_icon_size));
         } else if value.is_some() {
-            let value_scope_response = ui.ctx().read_response(value_scope_id);
+            let value_scope_response = ui.read_response(value_scope_id);
             let size = value_scope_response
                 .map(|r| r.rect.size())
                 .unwrap_or_default();
@@ -112,7 +107,9 @@ impl Widget for ComboItem<'_> {
         // spacing (2px space + 2px gap = 4px)
         atoms.push_right(Atom::default().atom_size(Vec2::new(2.0, 0.0)));
 
-        let response = Button::new(atoms).atom_ui(ui);
+        let response = Button::new(atoms)
+            .wrap_mode(TextWrapMode::Extend)
+            .atom_ui(ui);
 
         // Paint the error icon and tooltip
         if let Some(rect) = response.rect(error_id) {
@@ -143,7 +140,7 @@ impl Widget for ComboItem<'_> {
             );
             let mut child_ui = ui.new_child(
                 UiBuilder::new()
-                    .id(value_scope_id_raw)
+                    .id(value_scope_id)
                     .max_rect(rect)
                     .layout(Layout::right_to_left(Align::Center)),
             );
@@ -201,11 +198,11 @@ pub mod tests {
     use crate::syntax_highlighting::SyntaxHighlightedBuilder;
     use crate::{ComboItem, ComboItemHeader};
     use egui::ComboBox;
+    use egui_kittest::Harness;
     use egui_kittest::kittest::Queryable as _;
-    use egui_kittest::{Harness, SnapshotOptions};
 
-    #[test]
     #[ignore = "snapshot reference images were not vendored from the rerun repo"]
+    #[test]
     pub fn test_combo_item() {
         let mut harness = Harness::new_ui(|ui| {
             crate::apply_style_and_install_loaders(ui.ctx());
@@ -243,9 +240,10 @@ pub mod tests {
         harness.run();
         harness.fit_contents();
 
-        harness.snapshot_options(
-            "combo_item",
-            &SnapshotOptions::new().failed_pixel_count_threshold(10),
-        );
+        // Port note: `crate::testing` was not vendored; this matches upstream's
+        // `default_snapshot_options_for_ui()`.
+        let options = egui_kittest::SnapshotOptions::new().threshold(1.0).max_failed_pixels(10);
+
+        harness.snapshot_options("combo_item", &options);
     }
 }
