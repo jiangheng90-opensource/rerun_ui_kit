@@ -10,6 +10,17 @@ set but only depends on egui plus a handful of small pure-Rust libraries.
 
 Currently aligned with **egui 0.36** (e.g. `bevy_egui` 0.42 for bevy 0.19).
 
+## Version alignment
+
+| rerun_ui_kit | Vendored from `re_ui` | egui | bevy_egui | bevy |
+|---|---|---|---|---|
+| 0.2 | 0.38.1 | 0.36 | 0.42 | 0.19 |
+| 0.1 | 0.30.2 | 0.33 | 0.39 | 0.18 |
+
+The egui version must match the rest of your dependency tree (egui types are
+not interchangeable across versions), so pick the `rerun_ui_kit` release whose
+egui column matches your `bevy_egui` (or eframe) version.
+
 ![Screenshot of the rerun_ui_kit widget gallery example](screenshot.png)
 
 ## What's inside
