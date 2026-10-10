@@ -89,7 +89,6 @@ pub fn paint_loading_indicator_inside(
         return;
     }
 
-
     let r_pts = calc_radius(container_rect.size());
 
     if r_pts <= 0.0 || !r_pts.is_finite() {

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use egui::{Context, Id, Ui};
+use std::collections::HashMap;
 
 type CleanupClosure = Box<dyn FnOnce(&Context) + Send + Sync + 'static>;
 

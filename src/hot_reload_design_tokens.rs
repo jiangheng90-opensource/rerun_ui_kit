@@ -24,7 +24,6 @@ impl DesignTokensPerTheme {
             light: DesignTokens::load(egui::Theme::Light, include_str!("../data/light_theme.ron"))?,
         })
     }
-
 }
 
 mod design_token_access {
@@ -55,7 +54,6 @@ mod design_token_access {
     }
 }
 
-
 pub fn design_tokens_of(theme: egui::Theme) -> &'static DesignTokens {
     match theme {
         egui::Theme::Dark => &design_token_access::design_tokens_per_theme().dark,
@@ -64,4 +62,3 @@ pub fn design_tokens_of(theme: egui::Theme) -> &'static DesignTokens {
 }
 
 pub(crate) use design_token_access::try_set_design_tokens;
-

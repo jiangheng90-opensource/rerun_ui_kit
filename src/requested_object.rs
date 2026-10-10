@@ -1,5 +1,5 @@
-use crossbeam::channel::Receiver;
 use crate::async_runtime::{AsyncRuntimeHandle, WasmNotSend};
+use crossbeam::channel::Receiver;
 
 /// A handle to an object that is requested asynchronously.
 ///
@@ -195,4 +195,3 @@ impl<T: Send + 'static, E: std::fmt::Debug + Send + 'static> RequestedObject<T, 
         *self = Self::NotYetRequested { previous }
     }
 }
-

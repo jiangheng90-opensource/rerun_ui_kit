@@ -115,8 +115,7 @@ fn is_relevant(target: &str, level: log::Level) -> bool {
     // and the viewer. Since the viewer usually has more context it is better
     // suited to inform the user. We suppress info messages from `re_server`
     // to avoid spamming.
-    if level == log::Level::Info && (target == "re_server" || target.starts_with("re_server::"))
-    {
+    if level == log::Level::Info && (target == "re_server" || target.starts_with("re_server::")) {
         return false;
     }
 

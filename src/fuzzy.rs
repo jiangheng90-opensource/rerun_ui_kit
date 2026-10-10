@@ -42,7 +42,6 @@ impl FuzzyQuery {
 
     /// How well does this query match the target text (if at all)?
     pub fn try_match(&self, target: String) -> Option<FuzzyMatch> {
-
         let haystack = Utf32String::from(target.as_str());
         let mut matched_char_indices = Vec::new();
         let score = self.pattern.indices(
@@ -174,8 +173,7 @@ impl FuzzyMatch {
         }
 
         debug_assert_eq!(
-            self.target,
-            input_job.text,
+            self.target, input_job.text,
             "Different text in the input layout job vs what we matched on. Maybe a difference in how we format things vs how we syntax highlight them?"
         );
 

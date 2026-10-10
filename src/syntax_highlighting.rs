@@ -1,6 +1,6 @@
+use crate::HasDesignTokens as _;
 use egui::text::{ByteIndex, LayoutJob};
 use egui::{Color32, Style, TextFormat, TextStyle};
-use crate::HasDesignTokens as _;
 
 // ----------------------------------------------------------------------------
 pub trait SyntaxHighlighting {

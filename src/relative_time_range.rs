@@ -1,5 +1,5 @@
-use crate::time_types::{TimeInt, TimeRange, TimeRangeBoundary};
 use crate::time_types::{AbsoluteTimeRange, TimeType, TimestampFormat};
+use crate::time_types::{TimeInt, TimeRange, TimeRangeBoundary};
 
 use crate::list_item::{self, LabelContent};
 use crate::{TimeDragValue, UiExt as _};
@@ -265,9 +265,9 @@ impl RelativeTimeRange<'_> {
 mod tests {
     use std::ops::RangeInclusive;
 
-    use egui_kittest::{Harness, SnapshotResults};
     use crate::time_types::{TimeInt, TimeRange, TimeRangeBoundary};
     use crate::time_types::{TimeType, TimestampFormat};
+    use egui_kittest::{Harness, SnapshotResults};
 
     use super::RelativeTimeRange;
     use crate::{TimeDragValue, UiExt as _};

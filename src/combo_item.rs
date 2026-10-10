@@ -242,7 +242,9 @@ pub mod tests {
 
         // Port note: `crate::testing` was not vendored; this matches upstream's
         // `default_snapshot_options_for_ui()`.
-        let options = egui_kittest::SnapshotOptions::new().threshold(1.0).max_failed_pixels(10);
+        let options = egui_kittest::SnapshotOptions::new()
+            .threshold(1.0)
+            .max_failed_pixels(10);
 
         harness.snapshot_options("combo_item", &options);
     }

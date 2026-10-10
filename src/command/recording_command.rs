@@ -1,6 +1,6 @@
+use crate::ids::StoreId;
 use egui::os::OperatingSystem;
 use egui::{Id, Key, KeyboardShortcut, Modifiers};
-use crate::ids::StoreId;
 use smallvec::{SmallVec, smallvec};
 
 use super::CommandEnvironment;

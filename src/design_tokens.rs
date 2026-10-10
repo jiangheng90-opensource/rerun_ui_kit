@@ -792,7 +792,6 @@ impl DesignTokens {
 
     /// Apply style to the given egui context.
     pub(crate) fn apply(&self, style: &mut egui::Style) {
-
         self.set_text_styles(style);
         self.set_spacing(style);
         self.set_colors(style);

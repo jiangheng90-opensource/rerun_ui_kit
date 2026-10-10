@@ -46,7 +46,6 @@ fn command_channel() -> (CommandSender, CommandReceiver) {
     (CommandSender(sender), CommandReceiver(receiver))
 }
 
-
 /// Logger that forwards log records into the notifications UI demo.
 /// Replaces re_log::ChannelLogger from the original example.
 struct ChannelLogger(crossbeam::channel::Sender<rerun_ui_kit::notifications::LogMsg>);

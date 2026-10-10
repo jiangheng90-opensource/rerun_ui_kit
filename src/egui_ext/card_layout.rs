@@ -135,7 +135,6 @@ impl CardLayout {
 
         let mut clicked = None;
 
-
         let available_width = ui.available_width();
         let item_spacing = ui.spacing().item_spacing;
 

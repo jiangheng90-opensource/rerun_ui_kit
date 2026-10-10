@@ -292,7 +292,6 @@ impl CommandPalette {
         down: usize,
         mut scroll_to_selected_alternative: bool,
     ) -> Option<Cmd> {
-
         let query = FuzzyQuery::new(self.raw_query.clone());
 
         if query.is_empty() {
@@ -376,7 +375,6 @@ impl CommandPalette {
         let mut alternative_idx = 0; // across all groups
 
         for (group_idx, group) in groups.into_iter().enumerate() {
-
             for matched_cmd in group {
                 let selected = alternative_idx == self.selected_alternative;
                 let enabled = matched_cmd.enabled;

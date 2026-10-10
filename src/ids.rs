@@ -192,11 +192,7 @@ pub struct Origin {
 }
 
 impl Origin {
-    pub fn from_scheme_host_port(
-        scheme: Scheme,
-        host: url::Host<String>,
-        port: u16,
-    ) -> Self {
+    pub fn from_scheme_host_port(scheme: Scheme, host: url::Host<String>, port: u16) -> Self {
         Self { scheme, host, port }
     }
 }
